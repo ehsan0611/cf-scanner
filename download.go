@@ -37,7 +37,7 @@ func downloadTest(preclient *http.Client, conf *Conf, ip string, localIP net.IP,
 				)
 			} else {
 				if conf.TLS.Utls.Enable {
-					uclient, utlsE := utlsTransporter(conf, fingerprint, &conf.DownloadTest.SNI, ip, localIP)
+					uclient, utlsE := utlsTransporter(conf, fingerprint, conf.DownloadTest.SNI, ip, localIP)
 					if utlsE != nil {
 						return "FAILED"
 					}

@@ -264,18 +264,25 @@ func main() {
 					}
 
 					for _, port := range conf.Ports {
-						ip := fmt.Sprintf("%s:%d", ip, port)
+						addr := fmt.Sprintf("%s:%d", ip, port)
+
 						// generate http req
-						req := http.Request{Method: "GET", URL: &url.URL{Scheme: scheme, Host: ip, Path: conf.Path}, Host: conf.Hostname}
+						var hostname string
+						if strings.Contains(conf.Hostname, "{ip}") {
+							hostname = ip
+						} else {
+							hostname = conf.Hostname
+						}
+						req := http.Request{Method: "GET", URL: &url.URL{Scheme: scheme, Host: addr, Path: conf.Path}, Host: hostname}
 						req.Header = maps.Clone(conf.Headers)
-						req.Header.Set("Host", conf.Hostname)
+						req.Header.Set("Host", hostname)
 						if conf.Padding {
 							req.Header.Set("Cookie", RandomString(conf.PaddingSize))
 						}
 
 						s := time.Now()
 						if conf.TLS.Utls.Enable && conf.TLS.Enable && !conf.HTTP3 {
-							uclient, utlsE := utlsTransporter(&conf, fingerprint, nil, ip, ifaceIP)
+							uclient, utlsE := utlsTransporter(&conf, fingerprint, conf.TLS.SNI, addr, ifaceIP)
 							if utlsE != nil {
 								if LOG {
 									color.Red("%s", utlsE.Error())
@@ -320,30 +327,30 @@ func main() {
 								}
 								if jammed {
 									if LOG {
-										color.Red("%s\t%s\t%d\tJAMMED\n", ip, minrtt, latency)
+										color.Red("%s\t%s\t%d\tJAMMED\n", addr, minrtt, latency)
 									}
 									continue
 								}
 								jitter := Calc_jitter(latencies)
 								if jitter > conf.Jitter.MaxJitter {
-									color.Yellow("%s\t%s\t%d\t%f\n", ip, minrtt, latency, jitter)
+									color.Yellow("%s\t%s\t%d\t%f\n", addr, minrtt, latency, jitter)
 									continue
 								}
 								jitter_str = fmt.Sprintf("%f", jitter)
 							}
 							if conf.DownloadTest.Enable {
-								download_test = downloadTest(client, &conf, ip, ifaceIP, fingerprint)
+								download_test = downloadTest(client, &conf, addr, ifaceIP, fingerprint)
 							}
-							rep := fmt.Sprintf("%s\t%s\t%d\t%s\t%s\n", ip, minrtt, latency, jitter_str, download_test)
+							rep := fmt.Sprintf("%s\t%s\t%d\t%s\t%s\n", addr, minrtt, latency, jitter_str, download_test)
 							color.Green("%s", rep)
 							if conf.CSV {
-								res_ch <- fmt.Sprintf("%s,%s,%d,%s,%s\n", ip, minrtt, latency, jitter_str, download_test)
+								res_ch <- fmt.Sprintf("%s,%s,%d,%s,%s\n", addr, minrtt, latency, jitter_str, download_test)
 							} else {
 								res_ch <- rep
 							}
 						} else {
 							if LOG {
-								color.Red("%s\t%s\tHTTP.StatusCode=%d\n", ip, minrtt, respone.StatusCode)
+								color.Red("%s\t%s\tHTTP.StatusCode=%d\n", addr, minrtt, respone.StatusCode)
 							}
 						}
 					}
@@ -484,7 +491,7 @@ func main() {
 
 							s := time.Now()
 							if conf.TLS.Utls.Enable && conf.TLS.Enable && !conf.HTTP3 {
-								uclient, utlsE := utlsTransporter(&conf, fingerprint, &sni, ip, ifaceIP)
+								uclient, utlsE := utlsTransporter(&conf, fingerprint, sni, ip, ifaceIP)
 								if utlsE != nil {
 									if LOG {
 										color.Red("%s", utlsE.Error())
@@ -698,11 +705,7 @@ func h3transporter(conf *Conf, sni *string, qc *quic.Config) *http.Client {
 	}
 }
 
-func utlsTransporter(conf *Conf, fingerprint utls.ClientHelloID, sni *string, addr string, localIP net.IP) (*http.Client, error) {
-	if sni == nil {
-		sni = &conf.TLS.SNI
-	}
-
+func utlsTransporter(conf *Conf, fingerprint utls.ClientHelloID, sni string, addr string, localIP net.IP) (*http.Client, error) {
 	dialer := &net.Dialer{
 		Timeout: time.Millisecond * time.Duration(conf.TLS.Utls.TcpTimeout),
 		LocalAddr: &net.TCPAddr{
@@ -731,9 +734,15 @@ func utlsTransporter(conf *Conf, fingerprint utls.ClientHelloID, sni *string, ad
 		}
 	}
 
-	// Tls handshake with timeout
-	uTlsConn := utls.UClient(dialConn, &utls.Config{ServerName: *sni, InsecureSkipVerify: conf.TLS.Insecure}, fingerprint)
+	uTlsConf := utls.Config{InsecureSkipVerify: conf.TLS.Insecure}
+	if strings.Contains(sni, "{ip}") {
+		sni = strings.Split(addr, ":")[0]
+	}
+	if sni != "" {
+		uTlsConf.ServerName = sni
+	}
 
+	uTlsConn := utls.UClient(dialConn, &uTlsConf, fingerprint)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(conf.Maxlatency))
 	defer cancel()
 	if err := uTlsConn.HandshakeContext(ctx); err != nil {

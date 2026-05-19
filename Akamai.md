@@ -1,0 +1,79 @@
+# Akamai
+
+فایل کانفیگ `conf.json` به این شکل تنظیم کنید و اسکن کنید
+
+```json
+{
+ "LogErr": true,
+ "CSV": false,
+ "RandomScan": true,
+ "Interface": null,
+ "Hostname": "{ip}",
+ "Ports": [],
+ "Path": "/",
+ "Headers": {"User-Agent": ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0"]},
+ "ResponseHeader": {},
+ "ResponseStatusCode": [400],
+ "Padding": true,
+ "PaddingSize": "1-20",
+ "Ping": {
+  "Enable": false,
+  "MaxPing": 300,
+  "Privileged": true,
+  "Size": "24-65"
+ },
+ "Goroutines": 8,
+ "Scans": 6000,
+ "Maxlatency": 20000,
+ "Jitter": {
+  "Enable": false,
+  "MaxJitter": 50.0,
+  "Samples": 5,
+  "Interval": 200
+ },
+ "IpVersion": 4,
+ "IplistPath": "Akamai.txt",
+ "IgnoreRange": [],
+ "AllowRange": [],
+ "TLS": {
+  "Enable": true,
+  "SNI": null,
+  "Insecure": true,
+  "Alpn": ["h2", "http/1.1"],
+  "Utls": {
+   "Enable": true,
+   "Fingerprint": "chrome",
+   "TcpTimeout": 1000,
+   "TcpRetry": 1
+  }
+ },
+ "HTTP/3": false,
+ "Noises": {
+  "Enable": false,
+  "Packets": []
+ },
+ "DomainScan": {
+  "Enable": false,
+  "DomainAsSNI": false,
+  "DomainAsHost": false,
+  "Shuffle": true,
+  "SkipIPV6": true,
+  "DomainListPath": "cloudfalare-domains.txt"
+ },
+ "DownloadTest": {
+  "Enable": false,
+  "SeparateConnection": false,
+  "Url": "https://speed.cloudflare.com/__down?bytes=10000000",
+  "SNI": "cp.cloudflare.com",
+  "TargetBytes": 5000000,
+  "Timeout": 5000
+ }
+}
+```
+
+## نکات
+
+- با دو حالت مقدار SNI میتوان اسکن کرد
+  - `"SNI": null`: غیرفعال کردن SNI
+  - `"SNI": "{ip}"`: استفاده از آیپی مقصد به عنوان SNI
+- مقادیر متفاوت `TcpTimeout` امتحان کنید (پیشفرض 1 ثانیه)

@@ -12,18 +12,14 @@ Cloudflare scanner
 
 ## ⚠️ IRAN ⚠️
 
-[گروه تلگرام](https://t.me/cfscanner)
+‼️[اسکن akamai برای سایفون](/Akamai.md)
 
 > [!CAUTION]
 > نکات مهم برای وضعیت کنونی ایران
 
 - اسکن مبتنی بر Ping را غیرفعال کنید. بسیاری از آی‌پی‌ها به سوکت TCP پاسخ می‌دهند، حتی زمانی که Ping کار نمی‌کند. در فایل کانفیگ، در بخش Ping مقدار گزینه‌ی Enable را روی false قرار دهید.
 
-- تعداد Goroutine‌ها را بیشتر از ۸ تنظیم نکنید. در غیر این صورت، پس از چند دقیقه ممکن است اتصال اینترنت به‌طور کامل قطع شود (محدودیت اعمال‌شده از سمت اپراتور برای جلوگیری از اسکن گسترده).
-
 - حالت‌های مختلف Fingerprint را امتحان کنید. برای اپراتور ایرانسل، در محدودترین شرایط معمولاً فقط حالت chrome پاسخ می‌دهد.
-
-- مقدار IgnoreRange را خالی بگذارید تا تمام رنج‌های آی‌پی بدون استثنا اسکن شوند.
 
 - اگر سرعت اینترنت به‌شدت پایین است، مقدار MaxLatency را افزایش دهید.
 
@@ -93,7 +89,7 @@ go build -ldflags "-w -s"
  "CSV": false, // CSV format result.
  "RandomScan": true,
  "Interface": null,
- "Hostname": "cp.cloudflare.com", // The target hostname or domain to scan.
+ "Hostname": "cp.cloudflare.com", // The target hostname or domain to scan. Use "{ip}" to use ip as hostname.
  "Ports": [], // If empty, defaults to port 443 for HTTPS and 80 for HTTP.
  "Path": "/", // The path to append to the hostname.
  "Headers": { // Additional HTTP headers.
@@ -126,7 +122,7 @@ go build -ldflags "-w -s"
  "AllowRange": [], // List of IP ranges to allow. (e.g., `["192.0.0.0/8", "8.14.0.0/16"]`).
  "TLS": {
    "Enable": true,
-   "SNI": "cp.cloudflare.com", // The SNI value to use during the TLS handshake.
+   "SNI": "cp.cloudflare.com", // The SNI value to use during the TLS handshake. Use "{ip}" to use ip as SNI. Set null to disable SNI.
    "Insecure": false, // Certificate validation.
    "Alpn": ["h2", "http/1.1"], // List of supported ALPN (Application-Layer Protocol Negotiation) protocols.
    "Utls": {
