@@ -104,7 +104,6 @@ type Conf struct {
 	PaddingSize        string              `json:"PaddingSize"`
 	Ping               PingConfig          `json:"Ping"`
 	Goroutines         int                 `json:"Goroutines"`
-	Scans              int                 `json:"Scans"`
 	Maxlatency         int64               `json:"Maxlatency"`
 	Jitter             JitterConfig        `json:"Jitter"`
 	IpVersion          int                 `json:"IpVersion"`
@@ -122,23 +121,23 @@ func main() {
 	// load config file
 	cfile, cfile_err := os.ReadFile("conf.json")
 	if cfile_err != nil {
-		log.Fatalln(cfile_err.Error())
+		log.Fatalln(cfile_err)
 	}
 	conf := Conf{}
 	conf_err := json.Unmarshal(cfile, &conf)
 	if conf_err != nil {
-		log.Fatalln(conf_err.Error())
+		log.Fatalln(conf_err)
 	}
 
 	// Download ipv4.txt if not exist
-	_, exist := os.Stat("ipv4.txt")
-	if exist != nil {
-		e := GithubAPI("https://api.github.com/repos/compassvpn/cf-tools/releases/latest", "all_cf_v4.txt", "ipv4.txt")
-		if e != nil {
-			log.Println("Failed to download ipv4.txt: ", e, "\nFallback to ipv4_old.txt")
-			conf.IplistPath = "ipv4_old.txt"
-		}
-	}
+	// _, exist := os.Stat("ipv4.txt")
+	// if exist != nil {
+	// 	e := GithubAPI("https://api.github.com/repos/compassvpn/cf-tools/releases/latest", "all_cf_v4.txt", "ipv4.txt")
+	// 	if e != nil {
+	// 		log.Println("Failed to download ipv4.txt: ", e, "\nFallback to ipv4_old.txt")
+	// 		conf.IplistPath = "ipv4_old.txt"
+	// 	}
+	// }
 
 	var ifaceIP net.IP
 
@@ -255,7 +254,7 @@ func main() {
 
 						if pinger.Statistics().PacketLoss > 0 || pinger.Statistics().MinRtt > (time.Duration(conf.Ping.MaxPing)*time.Millisecond) {
 							if LOG {
-								color.Red("PING: %s\t%s\n", ip, pinger.Statistics().MinRtt)
+								color.Red("PING: %s\t%s", ip, pinger.Statistics().MinRtt)
 							}
 							continue
 						}
@@ -285,7 +284,7 @@ func main() {
 							uclient, utlsE := utlsTransporter(&conf, fingerprint, conf.TLS.SNI, addr, ifaceIP)
 							if utlsE != nil {
 								if LOG {
-									color.Red("%s", utlsE.Error())
+									color.Red("%s", utlsE)
 								}
 								continue
 							}
@@ -298,12 +297,17 @@ func main() {
 						latency := e.UnixMilli() - s.UnixMilli()
 						if http_err != nil {
 							if LOG {
-								color.Red("%s", http_err.Error())
+								color.Red("%s", http_err)
 							}
 							continue
 						}
 
-						if slices.Contains(conf.ResponseStatusCode, respone.StatusCode) && match(respone.Header, conf.ResponseHeader) {
+						if slices.Contains(conf.ResponseStatusCode, respone.StatusCode) {
+							matchHeadersE := matchHeaders(respone.Header, conf.ResponseHeader)
+							if matchHeadersE != nil {
+								color.Red("%s", matchHeadersE)
+								continue
+							}
 							// Calc jiiter
 							jitter_str := "Null"
 							download_test := "Null"
@@ -327,13 +331,13 @@ func main() {
 								}
 								if jammed {
 									if LOG {
-										color.Red("%s\t%s\t%d\tJAMMED\n", addr, minrtt, latency)
+										color.Red("%s\t%s\t%d\tJAMMED", addr, minrtt, latency)
 									}
 									continue
 								}
 								jitter := Calc_jitter(latencies)
 								if jitter > conf.Jitter.MaxJitter {
-									color.Yellow("%s\t%s\t%d\t%f\n", addr, minrtt, latency, jitter)
+									color.Yellow("%s\t%s\t%d\t%f", addr, minrtt, latency, jitter)
 									continue
 								}
 								jitter_str = fmt.Sprintf("%f", jitter)
@@ -350,7 +354,7 @@ func main() {
 							}
 						} else {
 							if LOG {
-								color.Red("%s\t%s\tHTTP.StatusCode=%d\n", addr, minrtt, respone.StatusCode)
+								color.Red("%s\t%s\tHTTP.StatusCode=%d", addr, minrtt, respone.StatusCode)
 							}
 						}
 					}
@@ -420,7 +424,7 @@ func main() {
 					domain := strings.TrimSpace(domain)
 					ips, resolve_err := net.LookupIP(domain)
 					if resolve_err != nil {
-						log.Println(resolve_err)
+						color.HiYellow("%s", resolve_err)
 						continue
 					}
 
@@ -438,7 +442,7 @@ func main() {
 							if conf.Interface != "" {
 								pinger.InterfaceName = conf.Interface
 							}
-							pinger.SetPrivileged(true)
+							pinger.SetPrivileged(conf.Ping.Privileged)
 							pinger.Size = randomRange(conf.Ping.Size)
 							pinger.Timeout = time.Duration(conf.Ping.MaxPing) * time.Millisecond
 
@@ -453,7 +457,7 @@ func main() {
 
 							if pinger.Statistics().PacketLoss > 0 || pinger.Statistics().MinRtt > (time.Duration(conf.Ping.MaxPing)*time.Millisecond) {
 								if LOG {
-									color.Red("PING: %s(%s)\t%s\n", domain, ip, pinger.Statistics().MinRtt)
+									color.Red("PING: %s(%s)\t%s", domain, ip, pinger.Statistics().MinRtt)
 								}
 								continue
 							}
@@ -494,7 +498,7 @@ func main() {
 								uclient, utlsE := utlsTransporter(&conf, fingerprint, sni, ip, ifaceIP)
 								if utlsE != nil {
 									if LOG {
-										color.Red("%s", utlsE.Error())
+										color.Red("%s", utlsE)
 									}
 									continue
 								}
@@ -507,12 +511,17 @@ func main() {
 							latency := e.UnixMilli() - s.UnixMilli()
 							if http_err != nil {
 								if LOG {
-									color.Red("%s", http_err.Error())
+									color.Red("%s", http_err)
 								}
 								continue
 							}
 
-							if slices.Contains(conf.ResponseStatusCode, respone.StatusCode) && match(respone.Header, conf.ResponseHeader) {
+							if slices.Contains(conf.ResponseStatusCode, respone.StatusCode) {
+								matchHeadersE := matchHeaders(respone.Header, conf.ResponseHeader)
+								if matchHeadersE != nil {
+									color.Red("%s(%s)\t%s", domain, ip, matchHeadersE)
+									continue
+								}
 								// Calc jiiter
 								jitter_str := "Null"
 								download_test := "Null"
@@ -536,13 +545,13 @@ func main() {
 									}
 									if jammed {
 										if LOG {
-											color.Red("%s(%s)\t%s\t%d\tJAMMED\n", domain, ip, minrtt, latency)
+											color.Red("%s(%s)\t%s\t%d\tJAMMED", domain, ip, minrtt, latency)
 										}
 										continue
 									}
 									jitter := Calc_jitter(latencies)
 									if jitter > conf.Jitter.MaxJitter {
-										color.Yellow("%s(%s)\t%s\t%d\t%f\n", domain, ip, minrtt, latency, jitter)
+										color.Yellow("%s(%s)\t%s\t%d\t%f", domain, ip, minrtt, latency, jitter)
 										continue
 									}
 									jitter_str = fmt.Sprintf("%f", jitter)
@@ -559,12 +568,13 @@ func main() {
 								}
 							} else {
 								if LOG {
-									color.Red("%s(%s)\t%s\tHTTP.StatusCode=%d\n", domain, ip, minrtt, respone.StatusCode)
+									color.Red("%s(%s)\t%s\tHTTP.StatusCode=%d", domain, ip, minrtt, respone.StatusCode)
 								}
 							}
 						}
 					}
 				}
+				ch <- "end"
 			}()
 		}
 
@@ -590,16 +600,16 @@ func main() {
 	}
 }
 
-func match(headers http.Header, tomatch map[string]string) bool {
+func matchHeaders(headers http.Header, tomatch map[string]string) error {
 	for header, value := range tomatch {
 		if headers.Get(header) == value {
 			continue
 		} else {
-			return false
+			return fmt.Errorf("response header not matching")
 		}
 	}
 
-	return true
+	return nil
 }
 
 func fgen(f string) utls.ClientHelloID {

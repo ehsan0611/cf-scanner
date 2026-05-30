@@ -14,14 +14,7 @@ Cloudflare scanner
 
 ‼️[اسکن akamai برای سایفون](/Akamai.md)
 
-> [!CAUTION]
-> نکات مهم برای وضعیت کنونی ایران
-
-- اسکن مبتنی بر Ping را غیرفعال کنید. بسیاری از آی‌پی‌ها به سوکت TCP پاسخ می‌دهند، حتی زمانی که Ping کار نمی‌کند. در فایل کانفیگ، در بخش Ping مقدار گزینه‌ی Enable را روی false قرار دهید.
-
-- حالت‌های مختلف Fingerprint را امتحان کنید. برای اپراتور ایرانسل، در محدودترین شرایط معمولاً فقط حالت chrome پاسخ می‌دهد.
-
-- اگر سرعت اینترنت به‌شدت پایین است، مقدار MaxLatency را افزایش دهید.
+‼️‼️ به دلیل فیلترینگ White list برای روی Cloudflare اگر دامنه شما در لیست سفید نباشد آیپی های پیدا شده برای دامنه شما کار نمیکند ‼️‼️
 
 ### توضیح عملکرد اسکنر بر اساس کانفیگ پیش‌فرض
 
@@ -93,7 +86,7 @@ go build -ldflags "-w -s"
  "Ports": [], // If empty, defaults to port 443 for HTTPS and 80 for HTTP.
  "Path": "/", // The path to append to the hostname.
  "Headers": { // Additional HTTP headers.
-    "User-Agent": ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/149.0"],
+    "User-Agent": ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0"],
  },
  "ResponseHeader": { // Headers that an HTTP response must include.
     "Server": "cloudflare"
@@ -107,8 +100,7 @@ go build -ldflags "-w -s"
    "Privileged": true, // SetPrivileged sets the type of ping pinger will send. false means pinger will send an "unprivileged" UDP ping. true means pinger will send a "privileged" raw ICMP ping. Setting to true requires that it be run with super-user privileges.
    "Size": "24-64" // Pinger packet size
  },
- "Goroutines": 8, // Number of concurrent goroutines for scanning.
- "Scans": 6000, // Total number of scans to perform per goroutine.
+ "Goroutines": 16, // Number of concurrent goroutines for scanning.
  "Maxlatency": 1000, // Maximum acceptable latency (in milliseconds).
  "Jitter": {
    "Enable": true, // Enable jitter calculation.

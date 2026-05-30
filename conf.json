@@ -7,22 +7,21 @@
 	"Ports": [],
 	"Path": "/",
 	"Headers": {
-		"User-Agent": ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0"]
+		"User-Agent": ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0"]
 	},
 	"ResponseHeader": {
 		"Server": "cloudflare"
 	},
 	"ResponseStatusCode": [200, 204],
 	"Padding": true,
-	"PaddingSize": "1-100",
+	"PaddingSize": "100-1000",
 	"Ping": {
 		"Enable": true,
 		"MaxPing": 300,
 		"Privileged": true,
 		"Size": "24-65"
 	},
-	"Goroutines": 8,
-	"Scans": 6000,
+	"Goroutines": 16,
 	"Maxlatency": 1000,
 	"Jitter": {
 		"Enable": true,
