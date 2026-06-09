@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -208,15 +209,18 @@ func main() {
 		}
 	}
 
+	file := FileMutex{
+		file: resultFile(conf.CSV),
+	}
+	defer file.Close()
+
 	LOG := conf.LogErr
 	color.Green("【ＨＴＴＰ Ｓｃａｎ】\n")
 	if !conf.DomainScan.Enable {
-		res_ch := make(chan string, conf.Goroutines)
 		ip_ch := make(chan string, conf.Goroutines)
-
-		// scanners
+		var wg sync.WaitGroup
 		for range conf.Goroutines {
-			go func() {
+			wg.Go(func() {
 				var client *http.Client
 				if conf.TLS.Enable {
 					if conf.HTTP3 {
@@ -331,7 +335,7 @@ func main() {
 								}
 								if jammed {
 									if LOG {
-										color.Red("%s\t%s\t%d\tJAMMED", addr, minrtt, latency)
+										color.Yellow("%s\t%s\t%d\tJAMMED", addr, minrtt, latency)
 									}
 									continue
 								}
@@ -345,12 +349,12 @@ func main() {
 							if conf.DownloadTest.Enable {
 								download_test = downloadTest(client, &conf, addr, ifaceIP, fingerprint)
 							}
-							rep := fmt.Sprintf("%s\t%s\t%d\t%s\t%s\n", addr, minrtt, latency, jitter_str, download_test)
+							rep := fmt.Sprintf("%-21s %-12s %d\t%s\t%s\n", addr, minrtt, latency, jitter_str, download_test)
 							color.Green("%s", rep)
 							if conf.CSV {
-								res_ch <- fmt.Sprintf("%s,%s,%d,%s,%s\n", addr, minrtt, latency, jitter_str, download_test)
+								file.Write(fmt.Sprintf("%s,%s,%d,%s,%s\n", addr, minrtt, latency, jitter_str, download_test))
 							} else {
-								res_ch <- rep
+								file.Write(rep)
 							}
 						} else {
 							if LOG {
@@ -359,21 +363,8 @@ func main() {
 						}
 					}
 				}
-			}()
+			})
 		}
-
-		go func() {
-			file := resultFile(conf.CSV)
-			defer file.Close()
-
-			for {
-				v, ok := <-res_ch
-				if !ok {
-					break
-				}
-				file.Write([]byte(v))
-			}
-		}()
 
 		if conf.RandomScan {
 			switch conf.IpVersion {
@@ -401,8 +392,9 @@ func main() {
 				ip_ch <- ip
 			}
 		}
+		close(ip_ch)
 
-		time.Sleep(time.Duration(conf.Maxlatency*int64(len(conf.Ports))) * time.Millisecond)
+		wg.Wait()
 	} else {
 		// Domain Scan
 		domainListFile, domainListFileErr := os.ReadFile(conf.DomainScan.DomainListPath)
@@ -417,9 +409,9 @@ func main() {
 			})
 		}
 
-		ch := make(chan string, conf.Goroutines)
+		var wg sync.WaitGroup
 		for domainsChunk := range slices.Chunk(domains, len(domains)/conf.Goroutines) {
-			go func() {
+			wg.Go(func() {
 				for _, domain := range domainsChunk {
 					domain := strings.TrimSpace(domain)
 					ips, resolve_err := net.LookupIP(domain)
@@ -545,7 +537,7 @@ func main() {
 									}
 									if jammed {
 										if LOG {
-											color.Red("%s(%s)\t%s\t%d\tJAMMED", domain, ip, minrtt, latency)
+											color.Yellow("%s(%s)\t%s\t%d\tJAMMED", domain, ip, minrtt, latency)
 										}
 										continue
 									}
@@ -562,9 +554,9 @@ func main() {
 								rep := fmt.Sprintf("%s:\t%s\t%s\t%d\t%s\t%s\n", domain, ip, minrtt, latency, jitter_str, download_test)
 								color.Green("%s", rep)
 								if conf.CSV {
-									ch <- fmt.Sprintf("%s:%s,%s,%d,%s,%s\n", domain, ip, minrtt, latency, jitter_str, download_test)
+									file.Write(fmt.Sprintf("%s:%s,%s,%d,%s,%s\n", domain, ip, minrtt, latency, jitter_str, download_test))
 								} else {
-									ch <- rep
+									file.Write(rep)
 								}
 							} else {
 								if LOG {
@@ -574,29 +566,10 @@ func main() {
 						}
 					}
 				}
-				ch <- "end"
-			}()
+			})
 		}
 
-		file := resultFile(conf.CSV)
-		defer file.Close()
-
-		deadgoroutines := 0
-		for {
-			if deadgoroutines == conf.Goroutines {
-				break
-			}
-			v, ok := <-ch
-			if !ok {
-				break
-			}
-			if v == "end" {
-				deadgoroutines += 1
-				color.Green("end of goroutine")
-				continue
-			}
-			file.Write([]byte(v))
-		}
+		wg.Wait()
 	}
 }
 
@@ -654,30 +627,6 @@ func randomRange(r string) int {
 	}
 
 	return rand.Intn(b-a+1) + a
-}
-
-func resultFile(csv bool) *os.File {
-	if csv {
-		will_be_created := false
-		_, exist := os.Stat("result.csv")
-		if exist != nil {
-			will_be_created = true
-		}
-		csv_file, err := os.OpenFile("result.csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		if will_be_created {
-			csv_file.Write([]byte("ip:port,ping,latency,jitter,download\n"))
-		}
-		return csv_file
-	} else {
-		file, err := os.OpenFile("result.txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		return file
-	}
 }
 
 func h3transporter(conf *Conf, sni *string, qc *quic.Config) *http.Client {
